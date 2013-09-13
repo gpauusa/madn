@@ -39,14 +39,14 @@ int main()
     }
 
     //register applications
-    MADN_DATAID id;
-    id.chunk = 5;
-    id.stripe = 15;
-    id.stripe = 35;
+    //MADN_DATAID id;
+    //id.chunk = 5;
+    //id.stripe = 15;
+    //id.stripe = 35;
 
     //madn_register_server(instance, id);
     //printf("%p\n", &testfunc);
-    madn_register_receiver(instance, id, 5, &testfunc);
+    //madn_register_receiver(instance, id, 5, &testfunc);
     //madn_register_receiver(instance, id, 5, &testfunc);
 
     //assert(g_queue_get_length((GQueue*) instance->mod_lq) == 2);

@@ -28,6 +28,8 @@ uint8_t create_structures(MADN_INSTANCE *env)
     //bloom_hash_create(env->hash, 2, sax_hash, sdbm_hash);
     assert(&env->hash != NULL);
     create_cache(env);
+    pthread_mutex_init(&env->bloomLock, NULL);
+    pthread_mutex_init(&env->lqLock, NULL);
     return 0;
     
 }
@@ -41,6 +43,8 @@ uint8_t destroy_structures(MADN_INSTANCE *env)
     destroy_service_queue(env);
     bloom_hash_destroy(&env->hash);
     destroy_cache(env);
+    pthread_mutex_destroy(&env->bloomLock);
+    pthread_mutex_destroy(&env->lqLock);
     return 0;
     
 }
@@ -49,6 +53,7 @@ uint8_t destroy_structures(MADN_INSTANCE *env)
 
 void handle_leech(MADN_PKT_LEECH *pkt, MADN_INSTANCE *env)
 {
+    printf("Recd lch\n");
     //When a LCH packet is seen, the following is done:
     //Look at header, check NODEID and entries
     //Look at Bloom Filter inside packet
@@ -92,15 +97,29 @@ void handle_leech(MADN_PKT_LEECH *pkt, MADN_INSTANCE *env)
         }
         else
         {
+            printf("ME:");
+            pthread_mutex_lock(&env->bloomLock);
+            fprint_bloom(stdout, (MADN_PTR) &env->bloom);
+            pthread_mutex_unlock(&env->bloomLock);
+            printf("\nPKT:");
+            fprint_bloom(stdout, (MADN_PTR) &pkt->bloom);
+            pthread_mutex_lock(&env->bloomLock);
+            printf("\nGossip %d\n", bloom_gossip(pkt->bloom, env->bloom));
+            pthread_mutex_unlock(&env->bloomLock);
             // TODO:if no, check bloom filter inclusion and add to req queue,
             // XXX:ignore if local
-            //if(bloom_gossip(env->bloom, pkt->bloom) == 0)
-            //{
-                //included, so no need to send
-            //    continue;
-            //}
-            //else
+            pthread_mutex_lock(&env->bloomLock);
+            if(get_packet_node((MADN_PTR) pkt) != env->globals->NODE_ID 
+                && bloom_gossip(pkt->bloom, env->bloom) == 0)
             {
+                pthread_mutex_unlock(&env->bloomLock);
+                //included, so no need to send
+                printf("LCH discarded\n");
+                continue;
+            }
+            else
+            {
+                pthread_mutex_unlock(&env->bloomLock);
                 add_entry_lq(env, pkt->request[i]);
             }
         }
@@ -111,15 +130,16 @@ void handle_leech(MADN_PKT_LEECH *pkt, MADN_INSTANCE *env)
             //update lmod
             time(&entry->lmod);
         }
-        else
-        {
-            pkt->request[i].pkts = entry->counter;
-        }
+        //else
+        //{
+            //pkt->request[i].pkts = entry->counter;
+        //}
     }
     free_req_pkt(&pkt);
 }
 void handle_beacon(MADN_PKT_BEACON *pkt, MADN_INSTANCE *env)
 {
+    //printf("\nRecd bcn from %d\n", get_packet_node((MADN_PTR) pkt));
     //Refer 6.8
     //Check if entry in SNB
     //update time
@@ -137,6 +157,7 @@ void handle_beacon(MADN_PKT_BEACON *pkt, MADN_INSTANCE *env)
 }
 void handle_data(MADN_PKT_DATA *pkt, MADN_INSTANCE *env)
 {
+    printf("Recd data\n");
     // send to rateless decoder, which will decode it and store in content cache
     // send to forwarding queue
 
@@ -162,6 +183,21 @@ void handle_data(MADN_PKT_DATA *pkt, MADN_INSTANCE *env)
 void handle_packet(MADN_PTR pkt, MADN_INSTANCE *env)
 {
     uint8_t type = get_packet_type(pkt);
+
+    //if (get_packet_node(pkt) == 29) 
+    //{
+    //    free(pkt);
+    //    return;
+    //}
+
+    if (get_packet_node(pkt) == env->globals->NODE_ID)
+    {
+        if (type == BEACON) free_beacon_pkt((MADN_PKT_BEACON**) &pkt);
+        if (type == LEECH ) free_req_pkt((MADN_PKT_LEECH **) &pkt);
+        if (type == DATA  ) free_data_pkt((MADN_PKT_DATA  **) &pkt);
+        return;
+    }
+
     switch (type)
     {
         case BEACON:
@@ -176,6 +212,8 @@ void handle_packet(MADN_PTR pkt, MADN_INSTANCE *env)
         default:
             //should never reach here
             //assert(0);
+            printf("\nOops! Unknown packet type!\n");
+            //free(pkt);
             break;
             
     }
@@ -196,7 +234,8 @@ void service_thread(MADN_INSTANCE *env)
     // If 0, remove entry from req table and also from service queue
     // Push entry back into queue if req table count not 0
 
-    while (!is_empty_sq(env))
+    uint32_t count = 0;
+    while (!is_empty_sq(env) && count < env->globals->MAX_DATA_PKT_SERVE)
     {
         MADN_DATAID* id = remove_entry_sq(env);
         assert(id != NULL);
@@ -211,7 +250,9 @@ void service_thread(MADN_INSTANCE *env)
         MADN_PKT_DATA* pkt = create_data_pkt();
         set_packet_node((MADN_PTR) pkt, env->globals->NODE_ID);
         copy_dataid(&pkt->id, id);
+        pthread_mutex_lock(&env->bloomLock);
         copy_bloom(&pkt->bloom, &env->bloom);
+        pthread_mutex_unlock(&env->bloomLock);
 
         entry->counter--;
         if (entry->counter == 0)
@@ -231,6 +272,7 @@ void service_thread(MADN_INSTANCE *env)
         //XXX: Potential race condition, if the decoded packets get evicted from cache
         
         addToOutputQueue(env, (MADN_PTR*) pkt, sizeof(MADN_PKT_DATA));
+        count++;
 
 
     }
@@ -246,8 +288,8 @@ void forward_thread(MADN_INSTANCE *env)
     // do not forward
     // if packet sent recently, do not forward
     // substitute NBF with local NBF and add packet to output queue
-    
-    while (!is_empty_fq(env))
+    uint32_t count = 0;
+    while (!is_empty_fq(env) && count < env->globals->MAX_DATA_PKT_FORWARD)
     {
         //get entry from fq
         MADN_PKT_DATA* pkt = remove_entry_fq(env);
@@ -262,22 +304,38 @@ void forward_thread(MADN_INSTANCE *env)
         }
         
         //check bloom inclusion
-        if (bloom_gossip(env->bloom, pkt->bloom) == 0)
+        printf("ME:");
+        pthread_mutex_lock(&env->bloomLock);
+        fprint_bloom(stdout, (MADN_PTR) &env->bloom);
+        pthread_mutex_unlock(&env->bloomLock);
+        printf("\nDATA PKT:");
+        fprint_bloom(stdout, (MADN_PTR) &pkt->bloom);
+        pthread_mutex_lock(&env->bloomLock);
+        printf("\nGossip %d\n", bloom_gossip(pkt->bloom, env->bloom));
+        pthread_mutex_unlock(&env->bloomLock);
+        pthread_mutex_lock(&env->bloomLock);
+        if (bloom_gossip(pkt->bloom, env->bloom) == 0)
         {
+            pthread_mutex_unlock(&env->bloomLock);
             //tbf was included in nbf
             //do not forward
             free_data_pkt(&pkt);
             continue;
         }
+        pthread_mutex_unlock(&env->bloomLock);
 
         //how do we know if packet sent recently? TODO
 
         //all tests passed, replace bloom
+        pthread_mutex_lock(&env->bloomLock);
         copy_bloom(&pkt->bloom, &env->bloom);
+        pthread_mutex_unlock(&env->bloomLock);
         set_packet_node((MADN_PTR) pkt, env->globals->NODE_ID); //TODO: we should do this, right? 
         time(&entry->lfwrd); //TODO: here?
 
+        printf("Sending data packet\n");
         addToOutputQueue(env, (MADN_PTR*) pkt, sizeof(MADN_PKT_DATA));
+        count++;
     }
 }
 
@@ -298,10 +356,12 @@ void leech_thread(MADN_INSTANCE *env)
     MADN_PKT_LEECH* lch = create_leech_pkt();
     set_packet_node((MADN_PTR) lch, env->globals->NODE_ID);
     //get bloom
+    pthread_mutex_lock(&env->bloomLock);
     copy_bloom(&lch->bloom, &env->bloom);
+    pthread_mutex_unlock(&env->bloomLock);
     int i;
 
-    for (i = 0; i < 160; i++)
+    for (i = 0; i < MAX_DATA_ID_REQUESTS; i++)
     {
         if (is_empty_lq(env)) break;
         MADN_DATA_REQUEST* req = remove_entry_lq(env);
@@ -376,6 +436,7 @@ void leech_thread(MADN_INSTANCE *env)
     }
     else
     {
+        printf("Added LCH to output Q\n");
         addToOutputQueue(env, (MADN_PTR*) lch, sizeof(MADN_PKT_LEECH));
         
     }
@@ -387,7 +448,9 @@ void beacon_thread(MADN_INSTANCE *env)
 {
     MADN_PKT_BEACON* bcn = create_beacon_pkt();
     set_packet_node((MADN_PTR) bcn, env->globals->NODE_ID);
+    pthread_mutex_lock(&env->bloomLock);
     copy_bloom(&bcn->bloom, &env->bloom);
+    pthread_mutex_unlock(&env->bloomLock);
     addToOutputQueue(env, (MADN_PTR*) bcn, sizeof(MADN_PKT_BEACON));
 }
 
@@ -399,8 +462,12 @@ void nb_thread(MADN_INSTANCE *env)
     // clear NBF
     // add all entries of SNB table into NBF, and delete entry from SNB table
 
+    pthread_mutex_lock(&env->bloomLock);
     bloom_reset(env->bloom, MADN_BLOOM_DIM);
     generate_self_bloom(env);
+    printf("Regen BF: ");
+    fprint_bloom(stdout, (MADN_PTR) &env->bloom);
+    pthread_mutex_unlock(&env->bloomLock);
 
 }
 

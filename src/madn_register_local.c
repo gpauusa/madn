@@ -47,6 +47,7 @@ uint8_t madn_register_server(MADN_INSTANCE *env, MADN_DATAID id)
 //handle_packet function
 //
 //This may need to be called repeatedly in case of packet loss, etc.
+//// NO MORE: Leech packet creation has been moved to a new thread.
 uint8_t madn_register_receiver(MADN_INSTANCE *env, MADN_DATAID id, uint8_t hops, void (*func) (MADN_DATAID))
 {
     //register func with local callback hash table
@@ -78,7 +79,8 @@ uint8_t madn_register_receiver(MADN_INSTANCE *env, MADN_DATAID id, uint8_t hops,
     lch->request[0].id.stripe = id.stripe;
     lch->request[0].hops = hops;
     lch->request[0].pkts = env->globals->ADU_MAX;
-    handle_packet((MADN_PTR) lch, env);
+
+    handle_leech(lch, env);
 
     return 0;
 }
@@ -94,5 +96,55 @@ void madn_execute_callback(MADN_INSTANCE* env, MADN_DATAID id)
     if (func != NULL)
     {
         (*func) (id);
+        //deregister (if required)
+        //remove will also work, but key mem will have to be freed first
+        g_hash_table_insert((GHashTable*) env->mod_local_cb, &id, NULL);
     }
 }
+
+/*
+int local_req_thread_helper(void* key, void* val, void* lc)
+{
+    MADN_DATAID* id = (MADN_DATAID*) key;
+    MADN_PKT_LEECH* lch = (MADN_PKT_LEECH*) lc;
+
+    if (val == NULL)
+    {
+        free_dataid(&id);
+        return TRUE;
+    }
+
+
+    int j = get_packet_entries((MADN_PTR) lch);
+    lch->request[j].id.chunk = id.chunk;
+    lch->request[j].id.stripe = id.stripe;
+    //lch->request[j].hops = 4;
+    lch->request[j].pkts = env->globals->ADU_MAX;
+    set_packet_entries((MADN_PTR) lch, get_packet_entries((MADN_PTR) lch) + 1);
+    return FALSE;
+
+}
+
+void local_req_thread(MADN_INSTANCE* env)
+{
+
+    if (env->mod_local_cb == NULL) return;
+
+    //create request and send it to handle_packet
+    MADN_PKT_LEECH* lch = create_leech_pkt();
+    set_packet_node((MADN_PTR) lch, env->globals->NODE_ID);
+    set_packet_entries((MADN_PTR) lch, 0);
+
+    g_hash_table_foreach_remove(env->mod_local_cb, local_req_thread_helper, lch);
+
+    int i;
+    for (i = 0; i < get_packet_entries; i++)
+    {
+
+
+    }
+
+    handle_leech(lch, env);
+
+}
+*/

@@ -89,16 +89,24 @@ MADN_DATA_REQUEST* add_entry_lq(MADN_INSTANCE *env, MADN_DATA_REQUEST id)
     MADN_DATA_REQUEST *tmp = create_data_request();
     copy_data_request(tmp, &id);
     //*tmp = id;
+    pthread_mutex_lock(&env->lqLock);
     g_queue_push_tail(LQ(env), tmp);
+    pthread_mutex_unlock(&env->lqLock);
     return tmp;
 
 }
 MADN_DATA_REQUEST* remove_entry_lq(MADN_INSTANCE *env)
 {
-    return (MADN_DATA_REQUEST*) g_queue_pop_head(LQ(env));
+    pthread_mutex_lock(&env->lqLock);
+    MADN_DATA_REQUEST* entry = (MADN_DATA_REQUEST*) g_queue_pop_head(LQ(env));
+    pthread_mutex_unlock(&env->lqLock);
+    return entry;
 }
 
 uint8_t is_empty_lq(MADN_INSTANCE *env)
 {
-    return g_queue_is_empty(LQ(env));
+    pthread_mutex_lock(&env->lqLock);
+    uint8_t ret = g_queue_is_empty(LQ(env));
+    pthread_mutex_unlock(&env->lqLock);
+    return ret;
 }

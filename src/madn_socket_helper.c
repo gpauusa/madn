@@ -21,8 +21,12 @@
 
 void reader_func(MSRPacket* packet, void* env)
 {
-    handle_packet((MADN_PTR) packet->buffer, (MADN_INSTANCE*) env);
-    free(packet);
+    //assert(packet->buffer != NULL);
+    if (packet->buffer != NULL) //TODO: Justify putting if instead of assert
+    {
+        handle_packet((MADN_PTR) packet->buffer, (MADN_INSTANCE*) env);
+    }
+    //free(packet);
 }
 
 void InitializeSocketAddrLL(struct sockaddr_ll  *socket_addr_ll, MADN_SETTINGS* globals)
@@ -51,6 +55,7 @@ void SetUserDefinedMsgValues(MSRMsgDetails *msgInfo, MADN_SETTINGS* globals)
 void addToOutputQueue(MADN_INSTANCE *env, MADN_PTR* buf, size_t length)
 {
 
+    assert(buf != NULL);
     MSRMsgDetails *msgInfo = calloc(1, sizeof(MSRMsgDetails));
 
     SetUserDefinedMsgValues(msgInfo, env->globals);
@@ -58,6 +63,7 @@ void addToOutputQueue(MADN_INSTANCE *env, MADN_PTR* buf, size_t length)
     msgInfo->msg=(MSRPacket*)malloc(sizeof(MSRPacket));
     msgInfo->msg->forwardFlag=0;//when 0, it creates, when 1 it forwards
     msgInfo->msg->buffer=buf;
+    printf("DBG: length %u\n", (unsigned int )length);
     msgInfo->msg->length=length;
     
     //printf("SENDING Reqs = %d\n", ((MADN_PKT_LEECH*) buf)->header.entries);
@@ -138,10 +144,12 @@ void receive_thread(MADN_INSTANCE* env)
     MSRPacket* queuedPacket = NULL;
     while(1)
     {
+        usleep((rand() % 10 + 1));//microseconds. creates number randomly from 0 to 100, sleps max 1 milisecond.
         pthread_mutex_lock (&(ri->recvQLock));
         if(!g_queue_is_empty(ri->recvQ))
         {
             queuedPacket = g_queue_pop_head(ri->recvQ);
+            assert(queuedPacket != NULL);
         }
         else
         {
@@ -149,7 +157,7 @@ void receive_thread(MADN_INSTANCE* env)
             break;
         }
         pthread_mutex_unlock (&(ri->recvQLock));
-        printf("\nCalling executer method");
+        //printf("\nCalling executer method");
         ri->executer(queuedPacket, (void*) env);
      }
 }

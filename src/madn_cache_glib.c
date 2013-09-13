@@ -71,17 +71,17 @@ uint8_t add_coded_packet_cache(MADN_INSTANCE* env, MADN_PKT_DATA* pkt)
 #ifdef TEST
         printf("DBG: Already present in hash table\n");
 #endif
-        return ret;
+        //return ret; TODO: remove comment when encoder actually starts sending meaningful data
     }
 
     //if not, add to hash table
     //duplicate pieces and data as they are going to be destroyed
-    data = malloc(sizeof(char) * MAX_DATA);
+    //data = malloc(sizeof(char) * MAX_DATA);
     //PIECES* pieces = create_pieces();
-    memcpy(data, &pkt->data, MAX_DATA);
+    //memcpy(data, &pkt->data, MAX_DATA);
     //copy_pieces(pieces, &pkt->pieces);
     
-    g_hash_table_insert((GHashTable*) entry->data, &hash, &data);
+    //g_hash_table_insert((GHashTable*) entry->data, &hash, &data);
     ret = 1;
 #ifdef TEST
     printf("DBG: Inserted data into hash table\n");
@@ -102,6 +102,7 @@ uint8_t check_decoded_cache(MADN_INSTANCE* env, MADN_DATAID id)
     CACHE_ENTRY* entry = check_entry_cache(env, id);
     if (entry == NULL) return 0;
 
+    printf("Packets recd: %d\n", entry->aducount);
     if (entry->aducount == entry->adumax)
     {
         return 1;

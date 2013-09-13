@@ -24,6 +24,9 @@ typedef struct
     unsigned char broadcast8bitMAC[8];
     unsigned int SNB_THREAD_INTERVAL; //threading 
     unsigned int BCN_THREAD_INTERVAL; //threading 
+    uint32_t MAX_DATA_PKT_FORWARD; //max number of data pkts to fwd at one go
+    uint32_t MAX_DATA_PKT_SERVE; //max number of data pkts to serve at one go
+    uint32_t BCN_REPEAT_THRESHOLD; //num of bcns to be seen before adding to nbf
 
 } MADN_SETTINGS;
 

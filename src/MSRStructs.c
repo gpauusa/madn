@@ -7,6 +7,7 @@
 
 
 #include "MSRStructs.h"
+#include <assert.h>
 
 
 
@@ -192,7 +193,7 @@ void MSR_BindReceiver(MSRRecvInfo *ri)
         printf("Error Binding");
         ri->resultcode=MSR_FAIL;
     }
-    
+
 }
 void MSR_CreateReceiver(void *recvInfo)
 {
@@ -220,7 +221,7 @@ void MSR_CreateReceiver(void *recvInfo)
 }
 void MSR_ReceivePacket(MSRRecvInfo * ri, int count)
 {
-    char add[6] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
+    //char add[6] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
     MSRPacket* msg = (MSRPacket*)malloc(sizeof(MSRPacket));
     msg->buffer=(void*)malloc(ri->msgDetail->bufferlength);
     msg->length=ri->msgDetail->bufferlength;    
@@ -239,19 +240,26 @@ void MSR_ReceivePacket(MSRRecvInfo * ri, int count)
         }
         else 
         {
+            /*
             if (memcmp(add, msg->buffer, ETH_ALEN)==0)
             {
                  printf("\n Received Broadcast Message number %d, Length : %d ", count+1,len);
             } 
             else
             {
+                 char* c = msg->buffer;
+                 printf("\n%X %X %X %X %X %X\n", c[0], c[1], c[2], c[3], c[4], c[5]);
                 printf("\nDiscarded Non Broadcast message");
                 ri->resultcode=MSR_FAIL;
             }
+            */
         }
+    //if (memcmp(ri->local_mac, ((struct sockaddr_ll*) ri->msgDetail->socket_addr_ll)->sll_addr, ETH_ALEN) != 0)
+    //{
+    //}
     ri->msg=msg;
     len=0;
-           
+        
 }
 /*------------------------MSR SEND FILES -------------------*/
 
@@ -329,18 +337,24 @@ void MSR_CreateSender(void *sendInfo)
     MSRMsgDetails *msgInfo=NULL;
     int Qempty=0;
     MSR_BindSender(si);
-    while(count<si->maxSend)
+    while(1) //count<si->maxSend) TODO: Inchara:???
     {
         usleep((rand() % 10 + 1));//microseconds. creates number randomly from 0 to 100, sleps max 1 milisecond.
         pthread_mutex_lock (&(si->sendQLock));
                 Qempty=0;
                 if(!g_queue_is_empty(si->sendQ)) 
+                {    
                     msgInfo=g_queue_pop_head(si->sendQ);
+                    assert(msgInfo != NULL);
+                    assert(msgInfo->msg != NULL);
+                }
                 else  Qempty=1;
         pthread_mutex_unlock (&(si->sendQLock));
         //usleep(msgInfo->sleepTime);//request time sleep. its the smaller of the two(beacon n req)
         if (!Qempty){ 
             msgPacketFromQueue=msgInfo->msg;
+            assert(msgInfo->msg != NULL);
+            printf("MSRSDBG: length:%d\n",msgPacketFromQueue->length);
             if(sendto(si->sock->socketConn, 
                     msgPacketFromQueue->buffer, 
                     msgPacketFromQueue->length, 
@@ -352,7 +366,7 @@ void MSR_CreateSender(void *sendInfo)
                 printf("\nCan't Send Packet");
                 si->resultcode=MSR_FAIL;
             }
-            else printf("\nSent Message %d",count+1);
+            //else printf("\nSent Message %d",count+1);
             count++;
         }
         //sleep(si->msgDetail);

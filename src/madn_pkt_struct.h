@@ -9,8 +9,8 @@
 #define LEECH 4
 #define DATA 8
 
-#define HEADER_DIM 8 //8 byte header
-#define MAX_DATA_ID_REQUESTS 160
+#define HEADER_DIM 14 //8 byte header
+#define MAX_DATA_ID_REQUESTS 120
 #define MAX_DATA 1400
 
 typedef struct {

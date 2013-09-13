@@ -73,7 +73,11 @@ int add_node_nb_bloom(void* key, void* val, void* en)
 
     //TODO: lchk check???
     //TODO: times check???
-    bloom_add_node(env->hash, env->bloom, MADN_BLOOM_DIM, *id);
+    //if (entry->counter >= env->globals->BCN_REPEAT_THRESHOLD)
+    //{
+        bloom_add_node(env->hash, env->bloom, MADN_BLOOM_DIM, *id);
+    //}
+    printf("Saw %d: %d times\n", *id, entry->counter);
  
     free_node_entry(&entry);
 
@@ -84,5 +88,9 @@ int add_node_nb_bloom(void* key, void* val, void* en)
 void generate_self_bloom(MADN_INSTANCE *env)
 {
     //generate bloom magic!
+    printf("NB HT Size:%d\n", g_hash_table_size(SNB(env)));
+    //insert myself
+    bloom_add_node(env->hash, env->bloom, MADN_BLOOM_DIM, env->globals->NODE_ID);
     g_hash_table_foreach_remove(SNB(env), add_node_nb_bloom, env);
+    //fprint_bloom(stdout, (MADN_PTR) &env->bloom);
 }

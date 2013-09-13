@@ -48,7 +48,7 @@ MADN_PKT_LEECH *create_leech_pkt()
 
 MADN_PKT_DATA *create_data_pkt()
 {
-        MADN_PKT_DATA* tmp = (MADN_PKT_DATA*) calloc(1, sizeof(MADN_PKT_LEECH));
+        MADN_PKT_DATA* tmp = (MADN_PKT_DATA*) calloc(1, sizeof(MADN_PKT_DATA));
         tmp->header.packet_type = DATA;
         tmp->header.entries = 0;
         return tmp;

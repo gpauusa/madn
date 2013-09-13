@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <pthread.h>
 #include "MSRStructs.h"
 #include "madn_settings.h"
 
@@ -45,6 +46,8 @@ typedef struct {
         void* mod_time;     //TODO:??
         BLOOM_HASH *hash;   //from bloom.h
         MADN_BLOOM bloom;   //local bloom filter
+        pthread_mutex_t bloomLock;
+        pthread_mutex_t lqLock;
         MSRSendInfo* si;
         MSRRecvInfo* ri;
         MADN_SETTINGS* globals;

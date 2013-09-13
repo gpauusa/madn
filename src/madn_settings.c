@@ -153,6 +153,21 @@ uint8_t read_madn_settings(char* filename, MADN_SETTINGS* globals)
                 token = strtok(NULL, "=\n");
                 globals->BCN_THREAD_INTERVAL = atoi(token);
             }
+            else if(strcmp(token, "MAX_DATA_PKT_FORWARD") == 0)
+            {
+                token = strtok(NULL, "=\n");
+                globals->MAX_DATA_PKT_FORWARD = atoi(token);
+            }
+            else if(strcmp(token, "MAX_DATA_PKT_SERVE") == 0)
+            {
+                token = strtok(NULL, "=\n");
+                globals->MAX_DATA_PKT_SERVE = atoi(token);
+            }
+            else if(strcmp(token, "BCN_REPEAT_THRESHOLD") == 0)
+            {
+                token = strtok(NULL, "=\n");
+                globals->BCN_REPEAT_THRESHOLD = atoi(token);
+            }
 
         }
 
@@ -184,6 +199,9 @@ void print_madn_settings(MADN_SETTINGS* globals)
     printf("broadcast8bitMAC:\t%.2X:%.2X:%.2X:%.2X:%.2X:%.2X:%.2X:%.2X\n", globals->broadcast8bitMAC[0], globals->broadcast8bitMAC[1], globals->broadcast8bitMAC[2], globals->broadcast8bitMAC[3], globals->broadcast8bitMAC[4], globals->broadcast8bitMAC[5], globals->broadcast8bitMAC[6], globals->broadcast8bitMAC[7]);
     printf("SNB_THREAD_INTERVAL:\t%u\n", globals->SNB_THREAD_INTERVAL);
     printf("BCN_THREAD_INTERVAL:\t%u\n", globals->BCN_THREAD_INTERVAL);
+    printf("MAX_DATA_PKT_FORWARD:\t%d\n", globals->MAX_DATA_PKT_FORWARD);
+    printf("MAX_DATA_PKT_SERVE:\t%d\n", globals->MAX_DATA_PKT_SERVE);
+    printf("BCN_REPEAT_THRESHOLD:\t%d\n", globals->BCN_REPEAT_THRESHOLD);
 
 
 }
